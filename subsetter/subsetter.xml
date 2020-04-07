@@ -1,0 +1,88 @@
+<tool id="subsetter" name="Cohort Subsetting Tool" version="0.1.0">
+    <description>
+    </description>
+
+    <macros>
+        <import>macros.xml</import>
+    </macros>
+
+    <expand macro="requirements" />
+
+    @VERSION_CMD@
+
+    <command detect_errors="exit_code"><![CDATA[
+        ##python $__tool_directory__/subset.py
+        python $run
+    ]]></command>
+
+    <configfiles>
+        <configfile name="run">
+import pandas as pd
+
+# Read the cohort file
+data = pd.read_csv("$cohort", sep="\t")
+data_headers = data.columns.copy()
+
+# Merge annotation file, if specified
+#if $annotations.use_annotations == "use"
+annotations = pd.read_csv("$annotations.ann_file", sep="\t")
+data = data.merge(right=annotations, how="inner",
+                  left_on="$annotations.cohort_key",
+                  right_on="$annotations.ann_key")
+#end if
+
+# Filter the cohort using the column/value pairs provided in the inputs
+columns = "$columns".split(',')
+values = "$values".split(',')
+#if $filter == "keep_values"
+for c, v in zip(columns, values):
+    data = data.loc[data[c]==v,:]
+#else if $filter == "filter_values"
+for c, v in zip(columns, values):
+    data = data.loc[data[c]!=v,:]
+#end if
+
+# Prepare the final dataframe and write the file
+#if $annotations.use_annotations == "use" and not $annotations.keep_cols
+data = data[data_headers]
+#end if
+data.to_csv(path="filtered.tsv", sep="\t", header=True, index=False)
+        </configfile> 
+    </configfiles>
+
+    <inputs>
+        <param name="cohort" type="data" format="tsv,tabular" label="Cohort Dataframe" help="Assumes Samples by Features" />
+
+        <conditional name="annotations">
+            <param name="use_annotations" type="select" label="Merge cohort data with annotation file?" help="Merges columns">
+                <option value="use">Use annotations</option>
+                <option value="dont_use">Do not use annotations</option>
+            </param>
+            <when value="use">
+                <param name="ann_file" type="file" format="tsv,tabular" label="Annotations file" help="Columns from this file will be added to the cohort dataframe"/>
+                <param name="cohort_key" type="text" label="Column to merge from cohort dataframe"/>
+                <param name="annotation_key" type="text" label="Column to merge from annotation dataframe"/>
+                <param name="keep_cols" type="boolean" label="Retain columns from annotation file in output" checked="false"/>
+            </when>
+            <when value="dont_use">
+            </when>
+        </conditional>
+
+        <param name="columns" type="text" label="Name(s) of Column(s)" help="Comma separated list of column names for filtering"/>
+        <param name="values" type="text" label="Column value(s)" help="Comma separated list of values to filter, should be one value per column"/>
+        <param name="filter" type="select" label="How to filter">
+            <option value="keep_values">Exclude non-matching values</option>
+            <option value="filter_values">Exclude matching values</option>
+        </param>
+    </inputs>
+
+    <outputs>
+        <data name="filtered" format="tsv" label="${tool.name} on ${on_string}"/>
+    </outputs>
+
+    <help><![CDATA[
+    ]]></help>
+
+    <expand macro="citations" />
+
+</tool>
